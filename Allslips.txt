@@ -1,0 +1,3778 @@
+slip1
+#include <stdio.h>
+
+#define MAX_FRAMES 3 // Maximum number of frames
+
+typedef struct Page {
+    int id;
+    int frequency;
+} Page;
+
+int main() {
+    int reference_string[] = {3, 4, 5, 4, 3, 4, 7, 2, 4, 5, 6, 7, 2, 4, 6};
+    int num_pages = sizeof(reference_string) / sizeof(reference_string[0]);
+    int memory[MAX_FRAMES];
+    Page pages[MAX_FRAMES];
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        memory[i] = -1; // Initialize memory with invalid page id
+        pages[i].id = -1; // Initialize page IDs with invalid value
+        pages[i].frequency = 0; // Initialize frequencies to 0
+    }
+
+    int page_faults = 0;
+
+    for (int i = 0; i < num_pages; i++) {
+        int page = reference_string[i];
+        int found = 0;
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == page) {
+                found = 1;
+                pages[j].frequency++;
+                break;
+            }
+        }
+
+        if (!found) {
+            int min_freq_index = 0;
+
+            for (int j = 1; j < MAX_FRAMES; j++) {
+                if (pages[j].id == -1 || pages[j].frequency < pages[min_freq_index].frequency) {
+                    min_freq_index = j;
+                }
+            }
+
+            if (pages[min_freq_index].id != -1) {
+                memory[min_freq_index] = page;
+                pages[min_freq_index].id = page;
+                pages[min_freq_index].frequency = 1;
+            } else {
+                for (int j = 0; j < MAX_FRAMES; j++) {
+                    if (memory[j] == -1) {
+                        memory[j] = page;
+                        pages[j].id = page;
+                        pages[j].frequency = 1;
+                        break;
+                    }
+                }
+            }
+
+            page_faults++;
+        }
+
+        printf("Page %d: [", page);
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == -1) {
+                printf("_");
+            } else {
+                printf("%d", memory[j]);
+            }
+
+            if (j < MAX_FRAMES - 1) {
+                printf(", ");
+            }
+        }
+
+        printf("]\n");
+    }
+
+    printf("Total Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+==============================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define MAX_INPUT_SIZE 1024
+#define MAX_TOKENS 100
+
+void execute_command(char* args[]) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        execvp(args[0], args);
+        perror("Error");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Parent process
+        wait(NULL);
+    } else {
+        perror("Error");
+    }
+}
+
+void typeline(char* option, char* filename) {
+    FILE* file = fopen(filename, "r");
+    char line[MAX_INPUT_SIZE];
+    int n;
+
+    if (file == NULL) {
+        printf("Error: Unable to open file '%s'\n", filename);
+        return;
+    }
+
+    if (strcmp(option, "+n") == 0) {
+        sscanf(filename, "+%d", &n);
+        for (int i = 0; i < n; i++) {
+            if (fgets(line, sizeof(line), file) != NULL) {
+                printf("%s", line);
+            } else {
+                break;
+            }
+        }
+    } else if (strcmp(option, "-a") == 0) {
+        while (fgets(line, sizeof(line), file) != NULL) {
+            printf("%s", line);
+        }
+    } else {
+        printf("Error: Invalid typeline option\n");
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char input[MAX_INPUT_SIZE];
+    char* args[MAX_TOKENS];
+    char* token;
+    int num_tokens;
+
+    while (1) {
+        printf("myshell$ ");
+        fflush(stdout);
+
+        fgets(input, sizeof(input), stdin);
+        input[strlen(input)-1] = '\0'; // Remove trailing newline
+
+        if (strcmp(input, "exit") == 0) {
+            break;
+        }
+
+        num_tokens = 0;
+        token = strtok(input, " ");
+
+        while (token != NULL) {
+            args[num_tokens++] = token;
+            token = strtok(NULL, " ");
+        }
+
+        args[num_tokens] = NULL;
+
+        if (strcmp(args[0], "typeline") == 0) {
+            if (num_tokens == 3) {
+                typeline(args[1], args[2]);
+            } else {
+                printf("Usage: typeline +n filename OR typeline -a filename\n");
+            }
+        } else {
+            execute_command(args);
+        }
+    }
+
+    return 0;
+}
+#############################################################################
+slip2
+#include <stdio.h>
+
+#define MAX_FRAMES 3 // Maximum number of frames
+
+int main() {
+    int reference_string[] = {3, 4, 5, 6, 3, 4, 7, 3, 4, 5, 6, 7, 2, 4, 6};
+    int num_pages = sizeof(reference_string) / sizeof(reference_string[0]);
+    int memory[MAX_FRAMES];
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        memory[i] = -1; // Initialize memory with invalid page id
+    }
+
+    int page_faults = 0;
+    int frame_index = 0;
+
+    for (int i = 0; i < num_pages; i++) {
+        int page = reference_string[i];
+        int found = 0;
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == page) {
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            memory[frame_index] = page;
+            frame_index = (frame_index + 1) % MAX_FRAMES;
+            page_faults++;
+        }
+
+        printf("Page %d: [", page);
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == -1) {
+                printf("_");
+            } else {
+                printf("%d", memory[j]);
+            }
+
+            if (j < MAX_FRAMES - 1) {
+                printf(", ");
+            }
+        }
+
+        printf("]\n");
+    }
+
+    printf("Total Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+===============================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <dirent.h>
+
+#define MAX_INPUT_SIZE 1024
+#define MAX_TOKENS 100
+
+void execute_command(char* args[]) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        execvp(args[0], args);
+        perror("Error");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Parent process
+        wait(NULL);
+    } else {
+        perror("Error");
+    }
+}
+
+void list_files(char* dirname) {
+    struct dirent *entry;
+    DIR *dir = opendir(dirname);
+
+    if (dir == NULL) {
+        printf("Error: Unable to open directory '%s'\n", dirname);
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dir);
+}
+
+void list_entries(char* dirname) {
+    struct dirent *entry;
+    DIR *dir = opendir(dirname);
+    int count = 0;
+
+    if (dir == NULL) {
+        printf("Error: Unable to open directory '%s'\n", dirname);
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        count++;
+    }
+
+    printf("Total entries in directory '%s': %d\n", dirname, count);
+
+    closedir(dir);
+}
+
+int main() {
+    char input[MAX_INPUT_SIZE];
+    char* args[MAX_TOKENS];
+    char* token;
+    int num_tokens;
+
+    while (1) {
+        printf("myshell$ ");
+        fflush(stdout);
+
+        fgets(input, sizeof(input), stdin);
+        input[strlen(input)-1] = '\0'; // Remove trailing newline
+
+        if (strcmp(input, "exit") == 0) {
+            break;
+        }
+
+        num_tokens = 0;
+        token = strtok(input, " ");
+
+        while (token != NULL) {
+            args[num_tokens++] = token;
+            token = strtok(NULL, " ");
+        }
+
+        args[num_tokens] = NULL;
+
+        if (strcmp(args[0], "list") == 0) {
+            if (num_tokens == 3) {
+                if (strcmp(args[1], "f") == 0) {
+                    list_files(args[2]);
+                } else if (strcmp(args[1], "n") == 0) {
+                    list_entries(args[2]);
+                } else {
+                    printf("Invalid list command. Use 'f' or 'n'.\n");
+                }
+            } else {
+                printf("Usage: list f/n dirname\n");
+            }
+        } else {
+            execute_command(args);
+        }
+    }
+
+    return 0;
+}
+########################################################################################
+slip3
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_FRAMES 3 // Maximum number of frames
+
+int main() {
+    int reference_string[] = {3, 5, 7, 2, 5, 1, 2, 3, 1, 3, 5, 3, 1, 6, 2};
+    int num_pages = sizeof(reference_string) / sizeof(reference_string[0]);
+    int memory[MAX_FRAMES];
+    int counters[MAX_FRAMES];
+    int time_counter = 0;
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        memory[i] = -1; // Initialize memory with invalid page id
+        counters[i] = 0; // Initialize counters to 0
+    }
+
+    int page_faults = 0;
+
+    for (int i = 0; i < num_pages; i++) {
+        int page = reference_string[i];
+        int found = 0;
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == page) {
+                found = 1;
+                counters[j] = time_counter++;
+                break;
+            }
+        }
+
+        if (!found) {
+            int min_counter_index = 0;
+
+            for (int j = 1; j < MAX_FRAMES; j++) {
+                if (counters[j] < counters[min_counter_index]) {
+                    min_counter_index = j;
+                }
+            }
+
+            memory[min_counter_index] = page;
+            counters[min_counter_index] = time_counter++;
+            page_faults++;
+        }
+
+        printf("Page %d: [", page);
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == -1) {
+                printf("_");
+            } else {
+                printf("%d", memory[j]);
+            }
+
+            if (j < MAX_FRAMES - 1) {
+                printf(", ");
+            }
+        }
+
+        printf("]\n");
+    }
+
+    printf("Total Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+============================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define MAX_INPUT_SIZE 1024
+#define MAX_TOKENS 100
+
+void execute_command(char* args[]) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        execvp(args[0], args);
+        perror("Error");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Parent process
+        wait(NULL);
+    } else {
+        perror("Error");
+    }
+}
+
+void count_characters(char* filename) {
+    FILE* file = fopen(filename, "r");
+    char ch;
+    int count = 0;
+
+    if (file == NULL) {
+        printf("Error: Unable to open file '%s'\n", filename);
+        return;
+    }
+
+    while ((ch = fgetc(file)) != EOF) {
+        count++;
+    }
+
+    fclose(file);
+
+    printf("Number of characters in file '%s': %d\n", filename, count);
+}
+
+void count_words(char* filename) {
+    FILE* file = fopen(filename, "r");
+    char word[100];
+    int count = 0;
+
+    if (file == NULL) {
+        printf("Error: Unable to open file '%s'\n", filename);
+        return;
+    }
+
+    while (fscanf(file, "%s", word) == 1) {
+        count++;
+    }
+
+    fclose(file);
+
+    printf("Number of words in file '%s': %d\n", filename, count);
+}
+
+void count_lines(char* filename) {
+    FILE* file = fopen(filename, "r");
+    char line[MAX_INPUT_SIZE];
+    int count = 0;
+
+    if (file == NULL) {
+        printf("Error: Unable to open file '%s'\n", filename);
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        count++;
+    }
+
+    fclose(file);
+
+    printf("Number of lines in file '%s': %d\n", filename, count);
+}
+
+int main() {
+    char input[MAX_INPUT_SIZE];
+    char* args[MAX_TOKENS];
+    char* token;
+    int num_tokens;
+
+    while (1) {
+        printf("myshell$ ");
+        fflush(stdout);
+
+        fgets(input, sizeof(input), stdin);
+        input[strlen(input)-1] = '\0'; // Remove trailing newline
+
+        if (strcmp(input, "exit") == 0) {
+            break;
+        }
+
+        num_tokens = 0;
+        token = strtok(input, " ");
+
+        while (token != NULL) {
+            args[num_tokens++] = token;
+            token = strtok(NULL, " ");
+        }
+
+        args[num_tokens] = NULL;
+
+        if (strcmp(args[0], "count") == 0) {
+            if (num_tokens == 3) {
+                if (strcmp(args[1], "c") == 0) {
+                    count_characters(args[2]);
+                } else if (strcmp(args[1], "w") == 0) {
+                    count_words(args[2]);
+                } else if (strcmp(args[1], "l") == 0) {
+                    count_lines(args[2]);
+                } else {
+                    printf("Invalid count command. Use 'c', 'w', or 'l'.\n");
+                }
+            } else {
+                printf("Usage: count c/w/l filename\n");
+            }
+        } else {
+            execute_command(args);
+        }
+    }
+
+    return 0;
+}
+===========================================================
+slip4
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define MAX_INPUT_SIZE 1024
+#define MAX_TOKENS 100
+
+void execute_command(char* args[]) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        execvp(args[0], args);
+        perror("Error");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Parent process
+        wait(NULL);
+    } else {
+        perror("Error");
+    }
+}
+
+void search_occurrences(char* filename, char* pattern) {
+    FILE* file = fopen(filename, "r");
+    char line[MAX_INPUT_SIZE];
+    int occurrences = 0;
+
+    if (file == NULL) {
+        printf("Error: Unable to open file '%s'\n", filename);
+        return;
+    }
+
+    while (fgets(line, sizeof(line), file) != NULL) {
+        if (strstr(line, pattern) != NULL) {
+            printf("%s", line);
+            occurrences++;
+        }
+    }
+
+    fclose(file);
+
+    printf("Total occurrences of '%s' in file '%s': %d\n", pattern, filename, occurrences);
+}
+
+int main() {
+    char input[MAX_INPUT_SIZE];
+    char* args[MAX_TOKENS];
+    char* token;
+    int num_tokens;
+
+    while (1) {
+        printf("myshell$ ");
+        fflush(stdout);
+
+        fgets(input, sizeof(input), stdin);
+        input[strlen(input)-1] = '\0'; // Remove trailing newline
+
+        if (strcmp(input, "exit") == 0) {
+            break;
+        }
+
+        num_tokens = 0;
+        token = strtok(input, " ");
+
+        while (token != NULL) {
+            args[num_tokens++] = token;
+            token = strtok(NULL, " ");
+        }
+
+        args[num_tokens] = NULL;
+
+        if (strcmp(args[0], "search") == 0) {
+            if (num_tokens == 3) {
+                search_occurrences(args[2], args[1]);
+            } else if (num_tokens == 4 && strcmp(args[1], "c") == 0) {
+                search_occurrences(args[3], args[2]);
+            } else {
+                printf("Invalid search command. Use 'search a filename pattern' or 'search c filename pattern'.\n");
+            }
+        } else {
+            execute_command(args);
+        }
+    }
+
+    return 0;
+}
+==========================================================================
+slip5
+#include <stdio.h>
+#include <stdlib.h>
+
+#define MAX_FRAMES 3 // Maximum number of frames
+
+int find_optimal_page(int memory[], int reference_string[], int start_index, int num_pages) {
+    int optimal_page = -1;
+    int farthest = start_index;
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        int j;
+        for (j = start_index; j < num_pages; j++) {
+            if (memory[i] == reference_string[j]) {
+                if (j > farthest) {
+                    farthest = j;
+                    optimal_page = i;
+                }
+                break;
+            }
+        }
+        if (j == num_pages) {
+            return i;
+        }
+    }
+
+    return (optimal_page == -1) ? 0 : optimal_page;
+}
+
+int main() {
+    int reference_string[] = {8, 5, 7, 8, 5, 7, 2, 3, 7, 3, 5, 9, 4, 6, 2};
+    int num_pages = sizeof(reference_string) / sizeof(reference_string[0]);
+    int memory[MAX_FRAMES];
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        memory[i] = -1; // Initialize memory with invalid page id
+    }
+
+    int page_faults = 0;
+
+    for (int i = 0; i < num_pages; i++) {
+        int page = reference_string[i];
+        int found = 0;
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == page) {
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            int page_index = find_optimal_page(memory, reference_string, i + 1, num_pages);
+            memory[page_index] = page;
+            page_faults++;
+        }
+
+        printf("Page %d: [", page);
+
+        for (int j = 0; j < MAX_FRAMES; j++) {
+            if (memory[j] == -1) {
+                printf("_");
+            } else {
+                printf("%d", memory[j]);
+            }
+
+            if (j < MAX_FRAMES - 1) {
+                printf(", ");
+            }
+        }
+
+        printf("]\n");
+    }
+
+    printf("Total Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+===================================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void search_f(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("%s", line);
+            fclose(file);
+            return;
+        }
+    }
+
+    printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    fclose(file);
+}
+
+void search_c(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int count = 0;
+    while (fgets(line, sizeof(line), file)) {
+        char *pos = line;
+        while ((pos = strstr(pos, pattern))) {
+            count++;
+            pos += strlen(pattern);
+        }
+    }
+
+    printf("Pattern \"%s\" occurs %d times in %s\n", pattern, count, filename);
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename, *pattern;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " ");
+        pattern = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && pattern != NULL) {
+            if (strcmp(action, "search") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    search_f(filename, pattern);
+                } else if (strcmp(option, "c") == 0) {
+                    search_c(filename, pattern);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'c'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'search f filename pattern' or 'search c filename pattern'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+=====================================================================
+slip6
+#include <stdio.h>
+
+void mru_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_faults = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+            int mru_index = 0;
+
+            for (int j = 1; j < num_frames; j++) {
+                if (memory[j] > memory[mru_index]) {
+                    mru_index = j;
+                }
+            }
+
+            memory[mru_index] = page;
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {8, 5, 7, 8, 5, 7, 2, 3, 7, 3, 5, 9, 4, 6, 2};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    mru_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+==========================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void search_f(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("%s", line);
+            fclose(file);
+            return;
+        }
+    }
+
+    printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    fclose(file);
+}
+
+void search_a(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int line_number = 1;
+    int pattern_found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("Line %d: %s", line_number, line);
+            pattern_found = 1;
+        }
+        line_number++;
+    }
+
+    if (!pattern_found) {
+        printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename, *pattern;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " ");
+        pattern = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && pattern != NULL) {
+            if (strcmp(action, "search") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    search_f(filename, pattern);
+                } else if (strcmp(option, "a") == 0) {
+                    search_a(filename, pattern);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'a'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'search f filename pattern' or 'search a filename pattern'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+========================================================
+slip7
+#include <stdio.h>
+#include <stdlib.h>
+
+void optimal_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_faults = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+
+            if (memory[0] == -1) {
+                for (int j = 0; j < num_frames; j++) {
+                    if (memory[j] == -1) {
+                        memory[j] = page;
+                        break;
+                    }
+                }
+            } else {
+                int future_references[num_frames];
+                for (int j = 0; j < num_frames; j++) {
+                    future_references[j] = -1;
+                }
+
+                for (int j = i + 1; j < num_references; j++) {
+                    for (int k = 0; k < num_frames; k++) {
+                        if (memory[k] == reference_string[j]) {
+                            future_references[k] = j;
+                            break;
+                        }
+                    }
+                }
+
+                int page_to_replace = -1;
+                int farthest_reference = -1;
+
+                for (int j = 0; j < num_frames; j++) {
+                    if (future_references[j] == -1) {
+                        page_to_replace = j;
+                        break;
+                    }
+
+                    if (future_references[j] > farthest_reference) {
+                        farthest_reference = future_references[j];
+                        page_to_replace = j;
+                    }
+                }
+
+                memory[page_to_replace] = page;
+            }
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {7, 5, 4, 8, 5, 7, 2, 3, 1, 3, 5, 9, 4, 6, 2};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    optimal_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+===============================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+void search_a(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int line_number = 1;
+    int pattern_found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("Line %d: %s", line_number, line);
+            pattern_found = 1;
+        }
+        line_number++;
+    }
+
+    if (!pattern_found) {
+        printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    }
+
+    fclose(file);
+}
+
+void search_c(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int count = 0;
+    while (fgets(line, sizeof(line), file)) {
+        char *pos = line;
+        while ((pos = strstr(pos, pattern))) {
+            count++;
+            pos += strlen(pattern);
+        }
+    }
+
+    printf("Pattern \"%s\" occurs %d times in %s\n", pattern, count, filename);
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename, *pattern;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " ");
+        pattern = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && pattern != NULL) {
+            if (strcmp(action, "search") == 0) {
+                if (strcmp(option, "a") == 0) {
+                    search_a(filename, pattern);
+                } else if (strcmp(option, "c") == 0) {
+                    search_c(filename, pattern);
+                } else {
+                    printf("Invalid option. Please use 'a' or 'c'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'search a filename pattern' or 'search c filename pattern'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+=================================================================
+slip8
+#include <stdio.h>
+
+void lru_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_order[num_frames];
+    int page_faults = 0;
+    int next_page_index = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+        page_order[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+
+            if (next_page_index < num_frames) {
+                memory[next_page_index] = page;
+                page_order[next_page_index] = page;
+                next_page_index++;
+            } else {
+                int lru_index = -1;
+                int lru_page = page_order[0];
+
+                for (int j = 0; j < num_frames; j++) {
+                    if (page_order[j] == lru_page) {
+                        lru_index = j;
+                        break;
+                    }
+                }
+
+                memory[lru_index] = page;
+
+                for (int j = 0; j < num_frames; j++) {
+                    if (page_order[j] != -1) {
+                        page_order[j]++;
+                    }
+                }
+
+                page_order[lru_index] = 0;
+            }
+        } else {
+            for (int j = 0; j < num_frames; j++) {
+                if (page_order[j] != -1) {
+                    page_order[j]++;
+                }
+            }
+
+            for (int j = 0; j < num_frames; j++) {
+                if (memory[j] == page) {
+                    page_order[j] = 0;
+                    break;
+                }
+            }
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {8, 5, 7, 8, 5, 7, 2, 3, 7, 3, 5, 9, 4, 6, 2};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    lru_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+=====================================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+void search_f(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int pattern_found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("%s", line);
+            pattern_found = 1;
+            break;
+        }
+    }
+
+    if (!pattern_found) {
+        printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    }
+
+    fclose(file);
+}
+
+void search_c(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int count = 0;
+    while (fgets(line, sizeof(line), file)) {
+        char *pos = line;
+        while ((pos = strstr(pos, pattern))) {
+            count++;
+            pos += strlen(pattern);
+        }
+    }
+
+    printf("Pattern \"%s\" occurs %d times in %s\n", pattern, count, filename);
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename, *pattern;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " ");
+        pattern = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && pattern != NULL) {
+            if (strcmp(action, "search") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    search_f(filename, pattern);
+                } else if (strcmp(option, "c") == 0) {
+                    search_c(filename, pattern);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'c'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'search f filename pattern' or 'search c filename pattern'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+=========================================================================
+slip9
+#include <stdio.h>
+
+void fifo_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_faults = 0;
+    int oldest_page_index = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+            memory[oldest_page_index] = page;
+            oldest_page_index = (oldest_page_index + 1) % num_frames;
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {8, 5, 7, 8, 5, 7, 2, 3, 7, 3, 5, 9, 4, 6, 2};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    fifo_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+========================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+void search_f(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int pattern_found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("%s", line);
+            pattern_found = 1;
+            break;
+        }
+    }
+
+    if (!pattern_found) {
+        printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    }
+
+    fclose(file);
+}
+
+void search_a(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        printf("File %s not found\n", filename);
+        return;
+    }
+
+    char line[1000];
+    int pattern_found = 0;
+    while (fgets(line, sizeof(line), file)) {
+        if (strstr(line, pattern)) {
+            printf("%s", line);
+            pattern_found = 1;
+        }
+    }
+
+    if (!pattern_found) {
+        printf("Pattern \"%s\" not found in %s\n", pattern, filename);
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename, *pattern;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " ");
+        pattern = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && pattern != NULL) {
+            if (strcmp(action, "search") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    search_f(filename, pattern);
+                } else if (strcmp(option, "a") == 0) {
+                    search_a(filename, pattern);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'a'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'search f filename pattern' or 'search a filename pattern'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+==================================================================
+slip10
+#include <stdio.h>
+
+void fifo_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_faults = 0;
+    int oldest_page_index = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+            memory[oldest_page_index] = page;
+            oldest_page_index = (oldest_page_index + 1) % num_frames;
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {2, 4, 5, 6, 9, 4, 7, 3, 4, 5, 6, 7, 2, 4, 7, 1};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    fifo_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+===================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+void list_f(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dir);
+}
+
+void list_i(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            struct stat file_stat;
+            char full_path[1000];
+            sprintf(full_path, "%s/%s", dirname, entry->d_name);
+
+            if (stat(full_path, &file_stat) == 0) {
+                printf("%s (inode: %ld)\n", entry->d_name, file_stat.st_ino);
+            }
+        }
+    }
+
+    closedir(dir);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *dirname;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        dirname = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && dirname != NULL) {
+            if (strcmp(action, "list") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    list_f(dirname);
+                } else if (strcmp(option, "i") == 0) {
+                    list_i(dirname);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'i'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'list f dirname' or 'list i dirname'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+===============================================================
+slip11
+#include <stdio.h>
+
+void lfu_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_frequency[num_frames];
+    int page_faults = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+        page_frequency[i] = 0;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                page_frequency[j]++;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+
+            if (page_frequency[0] == 0) {
+                memory[0] = page;
+                page_frequency[0] = 1;
+            } else {
+                int lfu_index = 0;
+                for (int j = 1; j < num_frames; j++) {
+                    if (page_frequency[j] < page_frequency[lfu_index]) {
+                        lfu_index = j;
+                    }
+                }
+
+                memory[lfu_index] = page;
+                page_frequency[lfu_index] = 1;
+            }
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d(%d) ", memory[j], page_frequency[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {3, 4, 5, 6, 3, 4, 7, 3, 4, 5, 6, 7, 2, 4, 6};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    lfu_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+=========================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+
+void list_f(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dir);
+}
+
+void list_n(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+    int num_entries = 0;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        num_entries++;
+    }
+
+    printf("Number of entries in %s: %d\n", dirname, num_entries - 2); // Subtract 2 for "." and ".."
+
+    closedir(dir);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *dirname;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        dirname = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && dirname != NULL) {
+            if (strcmp(action, "list") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    list_f(dirname);
+                } else if (strcmp(option, "n") == 0) {
+                    list_n(dirname);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'n'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'list f dirname' or 'list n dirname'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+================================================================
+slip12
+#include <stdio.h>
+
+void lru_page_replacement(int reference_string[], int num_references, int num_frames) {
+    int memory[num_frames];
+    int page_last_used[num_frames];
+    int page_faults = 0;
+    int time = 0;
+
+    for (int i = 0; i < num_frames; i++) {
+        memory[i] = -1;
+        page_last_used[i] = -1;
+    }
+
+    for (int i = 0; i < num_references; i++) {
+        int page = reference_string[i];
+        int page_found = 0;
+
+        for (int j = 0; j < num_frames; j++) {
+            if (memory[j] == page) {
+                page_found = 1;
+                page_last_used[j] = time++;
+                break;
+            }
+        }
+
+        if (!page_found) {
+            page_faults++;
+
+            if (time < num_frames) {
+                memory[time] = page;
+                page_last_used[time++] = time;
+            } else {
+                int lru_index = 0;
+                for (int j = 1; j < num_frames; j++) {
+                    if (page_last_used[j] < page_last_used[lru_index]) {
+                        lru_index = j;
+                    }
+                }
+
+                memory[lru_index] = page;
+                page_last_used[lru_index] = time++;
+            }
+        }
+
+        printf("Page %d: ", page);
+        for (int j = 0; j < num_frames; j++) {
+            printf("%d ", memory[j]);
+        }
+        printf("\n");
+    }
+
+    printf("Total number of page faults: %d\n", page_faults);
+}
+
+int main() {
+    int reference_string[] = {3, 4, 5, 6, 3, 4, 7, 3, 4, 5, 6, 7, 2, 4, 6};
+    int num_references = sizeof(reference_string) / sizeof(reference_string[0]);
+    int num_frames = 3;
+
+    lru_page_replacement(reference_string, num_references, num_frames);
+
+    return 0;
+}
+==================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+
+void list_f(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dir);
+}
+
+void list_n(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+    int num_entries = 0;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        num_entries++;
+    }
+
+    printf("Number of entries in %s: %d\n", dirname, num_entries - 2); // Subtract 2 for "." and ".."
+
+    closedir(dir);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *dirname;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        dirname = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && dirname != NULL) {
+            if (strcmp(action, "list") == 0) {
+                if (strcmp(option, "f") == 0) {
+                    list_f(dirname);
+                } else if (strcmp(option, "n") == 0) {
+                    list_n(dirname);
+                } else {
+                    printf("Invalid option. Please use 'f' or 'n'.\n");
+                }
+            } else {
+                printf("Invalid command. Please use 'list f dirname' or 'list n dirname'.\n");
+            }
+        }
+    }
+
+    return 0;
+}
+================================================================================
+slip13
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+void execute_command(char *command) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        char *args[100];
+        int i = 0;
+
+        char *token = strtok(command, " \n");
+        while (token != NULL) {
+            args[i++] = token;
+            token = strtok(NULL, " \n");
+        }
+        args[i] = NULL;
+
+        execvp(args[0], args);
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        perror("fork");
+    } else {
+        wait(NULL);
+    }
+}
+
+void typeline(char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    char line[1000];
+    while (fgets(line, sizeof(line), file)) {
+        printf("%s", line);
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL) {
+            if (strcmp(action, "typeline") == 0 && strcmp(option, "-a") == 0) {
+                typeline(filename);
+            } else {
+                printf("Invalid command. Please use 'typeline -a filename'.\n");
+            }
+        } else {
+            execute_command(command);
+        }
+    }
+
+    return 0;
+}
+=============================================================================================
+#include <stdio.h>
+
+void round_robin(int num_processes, int arrival_time[], int burst_time[], int time_quantum) {
+    int remaining_burst_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_turnaround_time = 0;
+    int total_waiting_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        remaining_burst_time[i] = burst_time[i];
+    }
+
+    int time = 0;
+    while (1) {
+        int all_processes_completed = 1;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (remaining_burst_time[i] > 0) {
+                all_processes_completed = 0;
+
+                if (remaining_burst_time[i] <= time_quantum) {
+                    time += remaining_burst_time[i];
+                    turnaround_time[i] = time - arrival_time[i];
+                    waiting_time[i] = turnaround_time[i] - burst_time[i];
+                    total_turnaround_time += turnaround_time[i];
+                    total_waiting_time += waiting_time[i];
+                    remaining_burst_time[i] = 0;
+                } else {
+                    time += time_quantum;
+                    remaining_burst_time[i] -= time_quantum;
+                }
+            }
+        }
+
+        if (all_processes_completed) {
+            break;
+        }
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+
+    printf("\nAverage Turnaround Time: %.2f\n", avg_turnaround_time);
+    printf("Average Waiting Time: %.2f\n", avg_waiting_time);
+}
+
+int main() {
+    int num_processes, time_quantum;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    printf("Enter time quantum: ");
+    scanf("%d", &time_quantum);
+
+    round_robin(num_processes, arrival_time, burst_time, time_quantum);
+
+    return 0;
+}
+==============================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+void execute_command(char *command) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        char *args[100];
+        int i = 0;
+
+        char *token = strtok(command, " \n");
+        while (token != NULL) {
+            args[i++] = token;
+            token = strtok(NULL, " \n");
+        }
+        args[i] = NULL;
+
+        execvp(args[0], args);
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        perror("fork");
+    } else {
+        wait(NULL);
+    }
+}
+
+void typeline(char *filename, int num_lines) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    char line[1000];
+    for (int i = 0; i < num_lines && fgets(line, sizeof(line), file); i++) {
+        printf("%s", line);
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename;
+        int num_lines;
+
+        action = strtok(command, " ");
+        option = strtok(NULL, " \n");
+        filename = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL && strcmp(action, "typeline") == 0 && option[0] == '+') {
+            num_lines = atoi(option + 1);
+            if (num_lines > 0) {
+                typeline(filename, num_lines);
+            } else {
+                printf("Invalid number of lines.\n");
+            }
+        } else {
+            execute_command(command);
+        }
+    }
+
+    return 0;
+}
+===============================================================
+#include <stdio.h>
+
+void sjf(int num_processes, int arrival_time[], int burst_time[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int processed[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        processed[i] = 0;
+    }
+
+    int current_time = 0;
+    int remaining_processes = num_processes;
+
+    while (remaining_processes > 0) {
+        int shortest_job = -1;
+        int shortest_burst = 9999;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (arrival_time[i] <= current_time && !processed[i] && burst_time[i] < shortest_burst) {
+                shortest_job = i;
+                shortest_burst = burst_time[i];
+            }
+        }
+
+        if (shortest_job == -1) {
+            current_time++;
+        } else {
+            completion_time[shortest_job] = current_time + burst_time[shortest_job];
+            turnaround_time[shortest_job] = completion_time[shortest_job] - arrival_time[shortest_job];
+            waiting_time[shortest_job] = turnaround_time[shortest_job] - burst_time[shortest_job];
+            total_waiting_time += waiting_time[shortest_job];
+            total_turnaround_time += turnaround_time[shortest_job];
+            processed[shortest_job] = 1;
+            current_time = completion_time[shortest_job];
+            remaining_processes--;
+        }
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    sjf(num_processes, arrival_time, burst_time);
+
+    return 0;
+}
+====================================================================================
+slip15
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+
+void list_files(char *dirname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    dir = opendir(dirname);
+    if (dir == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dir);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *dirname;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        dirname = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && dirname != NULL) {
+            if (strcmp(action, "list") == 0 && strcmp(option, "f") == 0) {
+                list_files(dirname);
+            } else {
+                printf("Invalid command. Please use 'list f dirname'.\n");
+            }
+        } else {
+            printf("Invalid command. Please use 'list f dirname'.\n");
+        }
+    }
+
+    return 0;
+}
+===============================================================================
+#include <stdio.h>
+
+void sjf_preemptive(int num_processes, int arrival_time[], int burst_time[]) {
+    int remaining_burst_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        remaining_burst_time[i] = burst_time[i];
+    }
+
+    int current_time = 0;
+    int completed_processes = 0;
+
+    while (completed_processes < num_processes) {
+        int shortest_job = -1;
+        int shortest_burst = 9999;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (arrival_time[i] <= current_time && remaining_burst_time[i] < shortest_burst && remaining_burst_time[i] > 0) {
+                shortest_job = i;
+                shortest_burst = remaining_burst_time[i];
+            }
+        }
+
+        if (shortest_job == -1) {
+            current_time++;
+        } else {
+            remaining_burst_time[shortest_job]--;
+            current_time++;
+
+            if (remaining_burst_time[shortest_job] == 0) {
+                completed_processes++;
+                turnaround_time[shortest_job] = current_time - arrival_time[shortest_job];
+                waiting_time[shortest_job] = turnaround_time[shortest_job] - burst_time[shortest_job];
+                total_waiting_time += waiting_time[shortest_job];
+                total_turnaround_time += turnaround_time[shortest_job];
+            }
+        }
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    sjf_preemptive(num_processes, arrival_time, burst_time);
+
+    return 0;
+}
+=================================================================
+slip16
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+void execute_command(char *command) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        char *args[100];
+        int i = 0;
+
+        char *token = strtok(command, " \n");
+        while (token != NULL) {
+            args[i++] = token;
+            token = strtok(NULL, " \n");
+        }
+        args[i] = NULL;
+
+        execvp(args[0], args);
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        perror("fork");
+    } else {
+        wait(NULL);
+    }
+}
+
+void count_characters(char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    int count = 0;
+    int ch;
+
+    while ((ch = fgetc(file)) != EOF) {
+        count++;
+    }
+
+    fclose(file);
+
+    printf("Number of characters in %s: %d\n", filename, count);
+}
+
+void count_words(char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    int count = 0;
+    int in_word = 0;
+    int ch;
+
+    while ((ch = fgetc(file)) != EOF) {
+        if (ch == ' ' || ch == '\n' || ch == '\t') {
+            in_word = 0;
+        } else if (!in_word) {
+            in_word = 1;
+            count++;
+        }
+    }
+
+    fclose(file);
+
+    printf("Number of words in %s: %d\n", filename, count);
+}
+
+int main() {
+    char command[1000];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        if (strcmp(command, "exit\n") == 0) {
+            break;
+        }
+
+        char *action, *option, *filename;
+        action = strtok(command, " ");
+        option = strtok(NULL, " ");
+        filename = strtok(NULL, " \n");
+
+        if (action != NULL && option != NULL && filename != NULL) {
+            if (strcmp(action, "count") == 0) {
+                if (strcmp(option, "c") == 0) {
+                    count_characters(filename);
+                } else if (strcmp(option, "w") == 0) {
+                    count_words(filename);
+                } else {
+                    printf("Invalid option. Please use 'count c filename' or 'count w filename'.\n");
+                }
+            } else {
+                execute_command(command);
+            }
+        } else {
+            printf("Invalid command. Please use 'count c filename' or 'count w filename'.\n");
+        }
+    }
+
+    return 0;
+}
+===============================================================
+#include <stdio.h>
+
+void priority_non_preemptive(int num_processes, int arrival_time[], int burst_time[], int priority[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        completion_time[i] = 0;
+        waiting_time[i] = 0;
+        turnaround_time[i] = 0;
+    }
+
+    for (int i = 0; i < num_processes - 1; i++) {
+        for (int j = i + 1; j < num_processes; j++) {
+            if (arrival_time[i] > arrival_time[j]) {
+                int temp = arrival_time[i];
+                arrival_time[i] = arrival_time[j];
+                arrival_time[j] = temp;
+
+                temp = burst_time[i];
+                burst_time[i] = burst_time[j];
+                burst_time[j] = temp;
+
+                temp = priority[i];
+                priority[i] = priority[j];
+                priority[j] = temp;
+            }
+        }
+    }
+
+    for (int i = 0; i < num_processes; i++) {
+        for (int j = 0; j < num_processes; j++) {
+            if (priority[i] < priority[j] && arrival_time[i] <= completion_time[j]) {
+                waiting_time[i] += burst_time[j];
+            }
+        }
+        turnaround_time[i] = waiting_time[i] + burst_time[i];
+        completion_time[i] = turnaround_time[i] + arrival_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tPriority\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], priority[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+    int priority[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+
+        printf("Enter priority for Process %d: ", i+1);
+        scanf("%d", &priority[i]);
+    }
+
+    priority_non_preemptive(num_processes, arrival_time, burst_time, priority);
+
+    return 0;
+}
+===============================================================================
+slip17
+#include <stdio.h>
+
+int findOptimal(int pages[], int n, int frames[], int m) {
+    int page_faults = 0;
+
+    for (int i = 0; i < n; i++) {
+        int j;
+        int hit = 0;
+
+        for (j = 0; j < m; j++) {
+            if (frames[j] == pages[i]) {
+                hit = 1;
+                break;
+            }
+        }
+
+        if (hit == 0) {
+            int k;
+            int max = -1;
+            int replace_index;
+
+            for (k = 0; k < m; k++) {
+                int l;
+                int found = 0;
+
+                for (l = i + 1; l < n; l++) {
+                    if (frames[k] == pages[l]) {
+                        found = 1;
+                        break;
+                    }
+                }
+
+                if (found == 0) {
+                    replace_index = k;
+                    break;
+                }
+            }
+
+            frames[replace_index] = pages[i];
+            page_faults++;
+        }
+    }
+
+    return page_faults;
+}
+
+int main() {
+    int pages[] = {7, 5, 4, 8, 5, 7, 2, 3, 1, 3, 5, 9, 4, 6};
+    int n = sizeof(pages) / sizeof(pages[0]);
+
+    int m;
+    printf("Enter the number of frames: ");
+    scanf("%d", &m);
+
+    int frames[m];
+    for (int i = 0; i < m; i++) {
+        frames[i] = -1; // Initialize frames as empty
+    }
+
+    int page_faults = findOptimal(pages, n, frames, m);
+
+    printf("Page Scheduling: ");
+    for (int i = 0; i < m; i++) {
+        if (frames[i] != -1) {
+            printf("%d ", frames[i]);
+        }
+    }
+    printf("\n");
+
+    printf("Total Number of Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+=================================================================================
+#include <stdio.h>
+
+void fcfs(int num_processes, int arrival_time[], int burst_time[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    completion_time[0] = burst_time[0];
+
+    for (int i = 1; i < num_processes; i++) {
+        completion_time[i] = completion_time[i-1] + burst_time[i];
+    }
+
+    for (int i = 0; i < num_processes; i++) {
+        turnaround_time[i] = completion_time[i] - arrival_time[i];
+        waiting_time[i] = turnaround_time[i] - burst_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    fcfs(num_processes, arrival_time, burst_time);
+
+    return 0;
+}
+======================================================================
+slip18
+#include <stdio.h>
+#include <stdlib.h>
+
+int findLRU(int pages[], int n, int frames[], int m) {
+    int page_faults = 0;
+    int *recently_used = (int *)malloc(m * sizeof(int));
+
+    for (int i = 0; i < m; i++) {
+        recently_used[i] = -1; // Initialize recently_used array
+    }
+
+    for (int i = 0; i < n; i++) {
+        int j;
+        int hit = 0;
+
+        for (j = 0; j < m; j++) {
+            if (frames[j] == pages[i]) {
+                hit = 1;
+                recently_used[j] = i;
+                break;
+            }
+        }
+
+        if (hit == 0) {
+            int replace_index = 0;
+            int min_used = recently_used[0];
+
+            for (j = 1; j < m; j++) {
+                if (recently_used[j] < min_used) {
+                    min_used = recently_used[j];
+                    replace_index = j;
+                }
+            }
+
+            frames[replace_index] = pages[i];
+            recently_used[replace_index] = i;
+            page_faults++;
+        }
+    }
+
+    free(recently_used);
+    return page_faults;
+}
+
+int main() {
+    int pages[] = {3, 4, 5, 6, 3, 4, 7, 3, 4, 5, 6, 7, 2, 4, 6};
+    int n = sizeof(pages) / sizeof(pages[0]);
+
+    int m;
+    printf("Enter the number of frames: ");
+    scanf("%d", &m);
+
+    int frames[m];
+    for (int i = 0; i < m; i++) {
+        frames[i] = -1; // Initialize frames as empty
+    }
+
+    int page_faults = findLRU(pages, n, frames, m);
+
+    printf("Page Scheduling: ");
+    for (int i = 0; i < m; i++) {
+        if (frames[i] != -1) {
+            printf("%d ", frames[i]);
+        }
+    }
+    printf("\n");
+
+    printf("Total Number of Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+================================================================================
+#include <stdio.h>
+
+void fcfs(int num_processes, int arrival_time[], int burst_time[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    completion_time[0] = burst_time[0];
+
+    for (int i = 1; i < num_processes; i++) {
+        completion_time[i] = completion_time[i-1] + burst_time[i];
+    }
+
+    for (int i = 0; i < num_processes; i++) {
+        turnaround_time[i] = completion_time[i] - arrival_time[i];
+        waiting_time[i] = turnaround_time[i] - burst_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    fcfs(num_processes, arrival_time, burst_time);
+
+    return 0;
+}
+======================================================================
+slip19
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <dirent.h>
+
+void listFiles(char *dirname) {
+    struct dirent *entry;
+    DIR *dp = opendir(dirname);
+
+    if (dp == NULL) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(dp))) {
+        if (entry->d_type == DT_REG) {
+            printf("%s\n", entry->d_name);
+        }
+    }
+
+    closedir(dp);
+}
+
+int main() {
+    char command[100];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        // Remove the newline character from the input
+        command[strcspn(command, "\n")] = 0;
+
+        char *token = strtok(command, " ");
+
+        if (strcmp(token, "list") == 0) {
+            char *option = strtok(NULL, " ");
+            char *dirname = strtok(NULL, " ");
+
+            if (option != NULL && dirname != NULL && strcmp(option, "f") == 0) {
+                listFiles(dirname);
+            } else {
+                printf("Invalid list command format\n");
+            }
+        } else {
+            pid_t pid = fork();
+
+            if (pid == 0) {
+                // Child process
+                execlp(token, token, NULL);
+                perror("exec");
+                exit(1);
+            } else if (pid < 0) {
+                perror("fork");
+            } else {
+                // Parent process
+                wait(NULL);
+            }
+        }
+    }
+
+    return 0;
+}
+======================================================================================
+#include <stdio.h>
+
+void roundRobin(int num_processes, int arrival_time[], int burst_time[], int time_quantum) {
+    int remaining_burst_time[num_processes];
+    int completion_time[num_processes];
+    int turnaround_time[num_processes];
+    int waiting_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+    int time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        remaining_burst_time[i] = burst_time[i];
+    }
+
+    while (1) {
+        int done = 1;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (remaining_burst_time[i] > 0) {
+                done = 0;
+
+                if (remaining_burst_time[i] > time_quantum) {
+                    time += time_quantum;
+                    remaining_burst_time[i] -= time_quantum;
+                } else {
+                    time += remaining_burst_time[i];
+                    completion_time[i] = time;
+                    remaining_burst_time[i] = 0;
+                }
+            }
+        }
+
+        if (done == 1) {
+            break;
+        }
+    }
+
+    for (int i = 0; i < num_processes; i++) {
+        turnaround_time[i] = completion_time[i] - arrival_time[i];
+        waiting_time[i] = turnaround_time[i] - burst_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+    int time_quantum;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    printf("Enter the time quantum: ");
+    scanf("%d", &time_quantum);
+
+    roundRobin(num_processes, arrival_time, burst_time, time_quantum);
+
+    return 0;
+}
+=======================================================================================
+slip20
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+void executeCommand(char *command) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        char *args[3];
+        args[0] = strtok(command, " ");
+        args[1] = strtok(NULL, " ");
+        args[2] = NULL;
+
+        if (execvp(args[0], args) == -1) {
+            perror("exec");
+        }
+        exit(EXIT_FAILURE);
+    } else if (pid < 0) {
+        perror("fork");
+    } else {
+        // Parent process
+        wait(NULL);
+    }
+}
+
+void typeline(char *filename) {
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL) {
+        perror("fopen");
+        return;
+    }
+
+    char line[1024];
+    while (fgets(line, sizeof(line), file)) {
+        printf("%s", line);
+    }
+
+    fclose(file);
+}
+
+int main() {
+    char command[1024];
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        // Remove the newline character from the input
+        command[strcspn(command, "\n")] = 0;
+
+        if (strncmp(command, "typeline -a", 11) == 0) {
+            char *filename = strtok(command + 12, " ");
+            typeline(filename);
+        } else {
+            executeCommand(command);
+        }
+    }
+
+    return 0;
+}
+=====================================================
+#include <stdio.h>
+
+void sjf(int num_processes, int arrival_time[], int burst_time[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        for (int j = i+1; j < num_processes; j++) {
+            if (arrival_time[i] > arrival_time[j]) {
+                int temp = arrival_time[i];
+                arrival_time[i] = arrival_time[j];
+                arrival_time[j] = temp;
+
+                temp = burst_time[i];
+                burst_time[i] = burst_time[j];
+                burst_time[j] = temp;
+            }
+        }
+    }
+
+    completion_time[0] = arrival_time[0] + burst_time[0];
+    turnaround_time[0] = completion_time[0] - arrival_time[0];
+    waiting_time[0] = turnaround_time[0] - burst_time[0];
+    total_waiting_time += waiting_time[0];
+    total_turnaround_time += turnaround_time[0];
+
+    for (int i = 1; i < num_processes; i++) {
+        int shortest = i;
+
+        for (int j = i+1; j < num_processes; j++) {
+            if (completion_time[i-1] >= arrival_time[j] && burst_time[j] < burst_time[shortest]) {
+                shortest = j;
+            }
+        }
+
+        int temp = completion_time[i-1];
+        completion_time[i-1] = completion_time[shortest];
+        completion_time[shortest] = temp;
+
+        temp = arrival_time[i];
+        arrival_time[i] = arrival_time[shortest];
+        arrival_time[shortest] = temp;
+
+        temp = burst_time[i];
+        burst_time[i] = burst_time[shortest];
+        burst_time[shortest] = temp;
+
+        completion_time[i] = completion_time[i-1] + burst_time[i];
+        turnaround_time[i] = completion_time[i] - arrival_time[i];
+        waiting_time[i] = turnaround_time[i] - burst_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+    }
+
+    sjf(num_processes, arrival_time, burst_time);
+
+    return 0;
+}
+===============================================================================
+slip21
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        printf("I am Child Process (PID: %d)\n", getpid());
+    } else if (pid > 0) {
+        // Parent process
+        printf("I am Parent Process (PID: %d)\n", getpid());
+    } else {
+        perror("fork");
+    }
+
+    return 0;
+}
+============================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+// Structure to represent a process
+typedef struct Process {
+    int pid;        // Process ID
+    int arrival;    // Arrival time
+    int burst;      // Burst time
+    int priority;   // Priority
+    int io_time;    // IO time
+    bool completed; // Flag to track if process is completed
+} Process;
+
+void preemptivePriority(int num_processes, Process processes[]) {
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+    int time = 0;
+
+    while (1) {
+        int highest_priority = -1;
+        int highest_priority_index = -1;
+
+        for (int i = 0; i < num_processes; i++) {
+            if (!processes[i].completed && processes[i].arrival <= time) {
+                if (highest_priority == -1 || processes[i].priority < highest_priority) {
+                    highest_priority = processes[i].priority;
+                    highest_priority_index = i;
+                }
+            }
+        }
+
+        if (highest_priority_index == -1) {
+            // No process is ready to execute, advance time to next arrival
+            int min_arrival = -1;
+
+            for (int i = 0; i < num_processes; i++) {
+                if (!processes[i].completed) {
+                    if (min_arrival == -1 || processes[i].arrival < min_arrival) {
+                        min_arrival = processes[i].arrival;
+                    }
+                }
+            }
+
+            if (min_arrival == -1) {
+                // All processes are completed
+                break;
+            }
+
+            time = min_arrival;
+            continue;
+        }
+
+        int pid = processes[highest_priority_index].pid;
+        printf("Executing Process %d at time %d\n", pid, time);
+
+        processes[highest_priority_index].burst--;
+
+        if (processes[highest_priority_index].burst == 0) {
+            processes[highest_priority_index].completed = true;
+            int turnaround_time = time + 1 - processes[highest_priority_index].arrival;
+            int waiting_time = turnaround_time - processes[highest_priority_index].burst - processes[highest_priority_index].io_time;
+            total_waiting_time += waiting_time;
+            total_turnaround_time += turnaround_time;
+
+            printf("Process %d completed. Turnaround time: %d, Waiting time: %d\n", pid, turnaround_time, waiting_time);
+        }
+
+        time++;
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    Process processes[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        processes[i].pid = i + 1;
+
+        printf("Enter arrival time for Process %d: ", i + 1);
+        scanf("%d", &processes[i].arrival);
+
+        printf("Enter burst time for Process %d: ", i + 1);
+        scanf("%d", &processes[i].burst);
+
+        printf("Enter priority for Process %d: ", i + 1);
+        scanf("%d", &processes[i].priority);
+
+        processes[i].io_time = 2;
+        processes[i].completed = false;
+    }
+
+    preemptivePriority(num_processes, processes);
+
+    return 0;
+}
+======================================================================
+slip22
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/time.h>
+
+int main() {
+    int child_pid;
+    int priority;
+
+    child_pid = fork();
+
+    if (child_pid == 0) {
+        // Child process
+        printf("Child Process ID: %d\n", getpid());
+
+        // Increase priority for the child process
+        priority = nice(10);
+
+        if (priority == -1) {
+            perror("nice");
+        } else {
+            printf("Increased priority for child process. New priority level: %d\n", priority);
+        }
+    } else if (child_pid > 0) {
+        // Parent process
+        printf("Parent Process ID: %d\n", getpid());
+        printf("Child Process ID: %d\n", child_pid);
+    } else {
+        perror("fork");
+    }
+
+    return 0;
+}
+=================================================================================
+#include <stdio.h>
+
+void nonPreemptivePriority(int num_processes, int arrival_time[], int burst_time[], int priority[]) {
+    int completion_time[num_processes];
+    int waiting_time[num_processes];
+    int turnaround_time[num_processes];
+    int total_waiting_time = 0;
+    int total_turnaround_time = 0;
+
+    for (int i = 0; i < num_processes; i++) {
+        for (int j = i+1; j < num_processes; j++) {
+            if (arrival_time[i] > arrival_time[j]) {
+                int temp = arrival_time[i];
+                arrival_time[i] = arrival_time[j];
+                arrival_time[j] = temp;
+
+                temp = burst_time[i];
+                burst_time[i] = burst_time[j];
+                burst_time[j] = temp;
+
+                temp = priority[i];
+                priority[i] = priority[j];
+                priority[j] = temp;
+            }
+        }
+    }
+
+    completion_time[0] = arrival_time[0] + burst_time[0];
+    turnaround_time[0] = completion_time[0] - arrival_time[0];
+    waiting_time[0] = turnaround_time[0] - burst_time[0];
+    total_waiting_time += waiting_time[0];
+    total_turnaround_time += turnaround_time[0];
+
+    for (int i = 1; i < num_processes; i++) {
+        int highest_priority = priority[i];
+        int shortest = i;
+
+        for (int j = i+1; j < num_processes; j++) {
+            if (arrival_time[j] <= completion_time[i-1] && priority[j] < highest_priority) {
+                shortest = j;
+                highest_priority = priority[j];
+            }
+        }
+
+        int temp = completion_time[i-1];
+        completion_time[i-1] = completion_time[shortest];
+        completion_time[shortest] = temp;
+
+        temp = arrival_time[i];
+        arrival_time[i] = arrival_time[shortest];
+        arrival_time[shortest] = temp;
+
+        temp = burst_time[i];
+        burst_time[i] = burst_time[shortest];
+        burst_time[shortest] = temp;
+
+        temp = priority[i];
+        priority[i] = priority[shortest];
+        priority[shortest] = temp;
+
+        completion_time[i] = completion_time[i-1] + burst_time[i];
+        turnaround_time[i] = completion_time[i] - arrival_time[i];
+        waiting_time[i] = turnaround_time[i] - burst_time[i];
+        total_waiting_time += waiting_time[i];
+        total_turnaround_time += turnaround_time[i];
+    }
+
+    printf("Process\tArrival Time\tBurst Time\tPriority\tCompletion Time\tTurnaround Time\tWaiting Time\n");
+    for (int i = 0; i < num_processes; i++) {
+        printf("%d\t%d\t\t%d\t\t%d\t\t%d\t\t%d\t\t%d\n", i+1, arrival_time[i], burst_time[i], priority[i], completion_time[i], turnaround_time[i], waiting_time[i]);
+    }
+
+    double avg_waiting_time = (double)total_waiting_time / num_processes;
+    double avg_turnaround_time = (double)total_turnaround_time / num_processes;
+
+    printf("\nAverage Waiting Time: %.2f\n", avg_waiting_time);
+    printf("Average Turnaround Time: %.2f\n", avg_turnaround_time);
+}
+
+int main() {
+    int num_processes;
+
+    printf("Enter the number of processes: ");
+    scanf("%d", &num_processes);
+
+    int arrival_time[num_processes];
+    int burst_time[num_processes];
+    int priority[num_processes];
+
+    for (int i = 0; i < num_processes; i++) {
+        printf("Enter arrival time for Process %d: ", i+1);
+        scanf("%d", &arrival_time[i]);
+
+        printf("Enter burst time for Process %d: ", i+1);
+        scanf("%d", &burst_time[i]);
+
+        printf("Enter priority for Process %d: ", i+1);
+        scanf("%d", &priority[i]);
+    }
+
+    nonPreemptivePriority(num_processes, arrival_time, burst_time, priority);
+
+    return 0;
+}
+========================================================================
+slip23
+#include <stdio.h>
+#include <unistd.h>
+
+int main() {
+    pid_t child_pid = fork();
+
+    if (child_pid == 0) {
+        // Child process
+        printf("Child process with PID %d created.\n", getpid());
+        printf("Parent process ID (PPID): %d\n", getppid());
+
+        // Simulating some work in the child process
+        for (int i = 1; i <= 5; i++) {
+            printf("Child working... (%d seconds)\n", i);
+            sleep(1);
+        }
+
+        printf("Child process finished.\n");
+    } else if (child_pid > 0) {
+        // Parent process
+        printf("Parent process with PID %d created.\n", getpid());
+        printf("Child process ID (PID): %d\n", child_pid);
+
+        // Parent process terminates before child
+        printf("Parent process terminating.\n");
+    } else {
+        perror("fork");
+    }
+
+    return 0;
+}
+=========================================================================
+#include <stdio.h>
+#include <stdbool.h>
+
+#define MAX_FRAMES 10
+
+int reference_string[] = {7, 5, 4, 8, 5, 7, 2, 3, 1, 3, 5, 9, 4, 6};
+int num_pages = sizeof(reference_string) / sizeof(reference_string[0]);
+
+int frames[MAX_FRAMES];
+bool page_present[MAX_FRAMES];
+
+int page_faults = 0;
+
+void initialize() {
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        frames[i] = -1;
+        page_present[i] = false;
+    }
+}
+
+void displayFrames() {
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        if (frames[i] == -1) {
+            printf(" -");
+        } else {
+            printf(" %d", frames[i]);
+        }
+    }
+    printf("\n");
+}
+
+int findOptimalPage(int start) {
+    int index = -1;
+    int farthest = start;
+
+    for (int i = 0; i < MAX_FRAMES; i++) {
+        int j;
+        for (j = start; j < num_pages; j++) {
+            if (frames[i] == reference_string[j]) {
+                if (j > farthest) {
+                    farthest = j;
+                    index = i;
+                }
+                break;
+            }
+        }
+
+        if (j == num_pages) {
+            return i;
+        }
+    }
+
+    return (index == -1) ? 0 : index;
+}
+
+void optimalPageReplacement() {
+    initialize();
+
+    for (int i = 0; i < num_pages; i++) {
+        int page = reference_string[i];
+
+        if (page_present[page]) {
+            printf("Page %d is already in memory.\n", page);
+        } else {
+            int empty_frame = -1;
+            for (int j = 0; j < MAX_FRAMES; j++) {
+                if (frames[j] == -1) {
+                    empty_frame = j;
+                    break;
+                }
+            }
+
+            if (empty_frame != -1) {
+                frames[empty_frame] = page;
+                page_present[page] = true;
+                page_faults++;
+            } else {
+                int replace_index = findOptimalPage(i + 1);
+                page_present[frames[replace_index]] = false;
+                frames[replace_index] = page;
+                page_present[page] = true;
+                page_faults++;
+            }
+
+            printf("Page %d caused a page fault. Frames after page fault: ", page);
+            displayFrames();
+        }
+    }
+}
+
+int main() {
+    optimalPageReplacement();
+
+    printf("\nTotal Page Faults: %d\n", page_faults);
+
+    return 0;
+}
+==============================================================
+slip24
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+// Function to perform bubble sort
+void bubbleSort(int arr[], int n) {
+    for(int i = 0; i < n-1; i++) {
+        for(int j = 0; j < n-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                // Swap arr[j] and arr[j+1]
+                int temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+        }
+    }
+}
+
+// Function to perform insertion sort
+void insertionSort(int arr[], int n) {
+    for(int i = 1; i < n; i++) {
+        int key = arr[i];
+        int j = i - 1;
+        
+        while(j >= 0 && arr[j] > key) {
+            arr[j+1] = arr[j];
+            j = j - 1;
+        }
+        arr[j+1] = key;
+    }
+}
+
+int main() {
+    int n;
+    printf("Enter the number of integers to sort: ");
+    scanf("%d", &n);
+    
+    int arr[n];
+    printf("Enter the %d integers to sort:\n", n);
+    for(int i = 0; i < n; i++) {
+        scanf("%d", &arr[i]);
+    }
+
+    int pid = fork();
+
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(-1);
+    } else if (pid == 0) {
+        // Child process (perform insertion sort)
+        insertionSort(arr, n);
+        printf("Child process (Insertion sort) completed sorting.\n");
+    } else {
+        // Parent process (perform bubble sort)
+        bubbleSort(arr, n);
+        printf("Parent process (Bubble sort) completed sorting.\n");
+
+        // Wait for child process to complete
+        wait(NULL);
+
+        // Print sorted array
+        printf("\nSorted array: ");
+        for(int i = 0; i < n; i++) {
+            printf("%d ", arr[i]);
+        }
+        printf("\n");
+    }
+
+    return 0;
+}
+=========================================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/wait.h>
+
+void count_chars(char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    int count = 0;
+    char ch;
+    while ((ch = fgetc(file)) != EOF) {
+        count++;
+    }
+
+    fclose(file);
+    printf("Number of characters in %s: %d\n", filename, count);
+}
+
+void count_words(char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    int count = 0;
+    char word[100]; // Assuming a maximum word length of 100 characters
+    while (fscanf(file, "%s", word) != EOF) {
+        count++;
+    }
+
+    fclose(file);
+    printf("Number of words in %s: %d\n", filename, count);
+}
+
+void count_lines(char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    int count = 0;
+    char line[1000]; // Assuming a maximum line length of 1000 characters
+    while (fgets(line, sizeof(line), file) != NULL) {
+        count++;
+    }
+
+    fclose(file);
+    printf("Number of lines in %s: %d\n", filename, count);
+}
+
+int main() {
+    char command[100];
+    char *args[4];
+    char *token;
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        // Remove newline character from the end
+        command[strlen(command) - 1] = '\0';
+
+        token = strtok(command, " ");
+        args[0] = token;
+
+        int i = 1;
+        while (token != NULL && i < 4) {
+            token = strtok(NULL, " ");
+            args[i] = token;
+            i++;
+        }
+
+        int pid = fork();
+
+        if (pid < 0) {
+            perror("Fork failed");
+            exit(-1);
+        } else if (pid == 0) {
+            // Child process
+            if (strcmp(args[0], "count") == 0) {
+                if (args[1] != NULL && args[2] != NULL) {
+                    if (strcmp(args[1], "c") == 0) {
+                        count_chars(args[2]);
+                    } else if (strcmp(args[1], "w") == 0) {
+                        count_words(args[2]);
+                    } else if (strcmp(args[1], "l") == 0) {
+                        count_lines(args[2]);
+                    } else {
+                        printf("Invalid count command.\n");
+                    }
+                } else {
+                    printf("Invalid count command.\n");
+                }
+            } else {
+                execvp(args[0], args);
+                perror("Error executing command");
+                exit(-1);
+            }
+        } else {
+            // Parent process
+            wait(NULL);
+        }
+    }
+
+    return 0;
+}
+============================================
+slip25
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+void bubbleSort(int arr[], int n) {
+    for(int i = 0; i < n-1; i++) {
+        for(int j = 0; j < n-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                // Swap arr[j] and arr[j+1]
+                int temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+        }
+    }
+}
+
+int main() {
+    int n;
+    printf("Enter the number of integers: ");
+    scanf("%d", &n);
+
+    int arr[n];
+    printf("Enter the %d integers:\n", n);
+    for(int i = 0; i < n; i++) {
+        scanf("%d", &arr[i]);
+    }
+
+    int pid = fork();
+
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(-1);
+    } else if (pid == 0) {
+        // Child process
+        char *sortedArr[n+2]; // +2 for the program name and NULL pointer
+        sortedArr[0] = "./binary_search"; // Assuming the binary search program is named binary_search
+
+        // Sorting the array
+        bubbleSort(arr, n);
+
+        // Converting integers to strings and adding them to the argument list
+        for (int i = 0; i < n; i++) {
+            sortedArr[i+1] = malloc(10); // Assuming a maximum of 10 digits for each integer
+            sprintf(sortedArr[i+1], "%d", arr[i]);
+        }
+
+        sortedArr[n+1] = NULL; // Last argument must be NULL
+
+        execve(sortedArr[0], sortedArr, NULL);
+        perror("Error executing binary_search");
+        exit(-1);
+    } else {
+        // Parent process
+        wait(NULL);
+    }
+
+    return 0;
+}
+==============================================================
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/wait.h>
+
+void search_file(char *filename, char *pattern) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+
+    char line[1000]; // Assuming a maximum line length of 1000 characters
+    int line_number = 0;
+    while (fgets(line, sizeof(line), file) != NULL) {
+        line_number++;
+        if (strstr(line, pattern) != NULL) {
+            printf("Pattern found in line %d: %s", line_number, line);
+            fclose(file);
+            return;
+        }
+    }
+
+    printf("Pattern not found.\n");
+    fclose(file);
+}
+
+int main() {
+    char command[100];
+    char *args[4];
+    char *token;
+
+    while (1) {
+        printf("myshell$ ");
+        fgets(command, sizeof(command), stdin);
+
+        // Remove newline character from the end
+        command[strlen(command) - 1] = '\0';
+
+        token = strtok(command, " ");
+        args[0] = token;
+
+        int i = 1;
+        while (token != NULL && i < 4) {
+            token = strtok(NULL, " ");
+            args[i] = token;
+            i++;
+        }
+
+        int pid = fork();
+
+        if (pid < 0) {
+            perror("Fork failed");
+            exit(-1);
+        } else if (pid == 0) {
+            // Child process
+            if (strcmp(args[0], "search") == 0) {
+                if (args[1] != NULL && args[2] != NULL && args[3] != NULL) {
+                    if (strcmp(args[1], "f") == 0) {
+                        search_file(args[2], args[3]);
+                    } else {
+                        printf("Invalid search command.\n");
+                    }
+                } else {
+                    printf("Invalid search command.\n");
+                }
+            } else {
+                execvp(args[0], args);
+                perror("Error executing command");
+                exit(-1);
+            }
+        } else {
+            // Parent process
+            wait(NULL);
+        }
+    }
+
+    return 0;
+}
